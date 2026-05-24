@@ -79,13 +79,6 @@ struct ContentView: View {
                     }
                 }
 
-                if !viewModel.latestTranscript.isEmpty {
-                    Section("最新結果") {
-                        Text(viewModel.latestTranscript)
-                            .textSelection(.enabled)
-                    }
-                }
-
                 Section("履歴") {
                     if records.isEmpty {
                         ContentUnavailableView("履歴がありません", systemImage: "waveform", description: Text("録音を停止すると履歴に保存されます。"))

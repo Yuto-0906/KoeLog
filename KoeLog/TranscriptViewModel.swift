@@ -12,7 +12,6 @@ final class TranscriptViewModel: ObservableObject {
     @Published var apiKey = ""
     @Published var apiKeySaved = false
     @Published var statusMessage = "API キーを設定し、録音を開始してください。"
-    @Published var latestTranscript = ""
     @Published var errorMessage: String?
     @Published var isProcessing = false
 
@@ -211,7 +210,6 @@ final class TranscriptViewModel: ObservableObject {
                 record.errorMessage = nil
                 try modelContext.save()
                 jobStore.remove(recordID: record.id)
-                latestTranscript = transcript
                 statusMessage = "文字起こしが完了しました。"
                 NotificationManager.notifyTranscriptionCompleted()
             } catch {
