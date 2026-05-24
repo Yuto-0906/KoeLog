@@ -107,3 +107,22 @@ enum AudioFileStore {
         try? FileManager.default.removeItem(at: url)
     }
 }
+
+enum ExportFileStore {
+    static func transcriptTextURL(for record: TranscriptRecord) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("KoeLogExports", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+
+        let fileURL = directory.appendingPathComponent("\(baseFileName(for: record)).txt")
+        try record.transcript.write(to: fileURL, atomically: true, encoding: .utf8)
+        return fileURL
+    }
+
+    private static func baseFileName(for record: TranscriptRecord) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return "koelog-\(formatter.string(from: record.createdAt))"
+    }
+}

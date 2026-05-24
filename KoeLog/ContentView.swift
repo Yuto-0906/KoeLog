@@ -171,6 +171,8 @@ struct TranscriptDetailView: View {
     @ObservedObject var viewModel: TranscriptViewModel
     @StateObject private var player = AudioPlayer()
     @State private var isShowingDeleteConfirmation = false
+    @State private var transcriptExportURL: URL?
+    @State private var exportErrorMessage: String?
 
     var body: some View {
         List {
@@ -209,6 +211,31 @@ struct TranscriptDetailView: View {
                 }
             }
 
+            Section("エクスポート") {
+                if FileManager.default.fileExists(atPath: record.audioURL.path) {
+                    ShareLink(item: record.audioURL) {
+                        Label("音声ファイルを書き出す", systemImage: "waveform")
+                    }
+                } else {
+                    Label("音声ファイルが見つかりません", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                }
+
+                if let transcriptExportURL {
+                    ShareLink(item: transcriptExportURL) {
+                        Label("文字起こしテキストを書き出す", systemImage: "doc.text")
+                    }
+                } else {
+                    Label("文字起こしテキストはまだありません", systemImage: "doc.text")
+                        .foregroundStyle(.secondary)
+                }
+
+                if let exportErrorMessage {
+                    Text(exportErrorMessage)
+                        .foregroundStyle(.red)
+                }
+            }
+
             if record.status != .completed {
                 Section {
                     Button {
@@ -222,6 +249,12 @@ struct TranscriptDetailView: View {
         }
         .navigationTitle("履歴詳細")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            prepareTranscriptExport()
+        }
+        .onChange(of: record.transcript) { _, _ in
+            prepareTranscriptExport()
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(role: .destructive) {
@@ -240,6 +273,22 @@ struct TranscriptDetailView: View {
             Button("キャンセル", role: .cancel) {}
         } message: {
             Text("文字起こし履歴と録音ファイルを削除します。")
+        }
+    }
+
+    private func prepareTranscriptExport() {
+        guard !record.transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            transcriptExportURL = nil
+            exportErrorMessage = nil
+            return
+        }
+
+        do {
+            transcriptExportURL = try ExportFileStore.transcriptTextURL(for: record)
+            exportErrorMessage = nil
+        } catch {
+            transcriptExportURL = nil
+            exportErrorMessage = error.localizedDescription
         }
     }
 }
