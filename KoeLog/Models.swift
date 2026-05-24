@@ -91,9 +91,124 @@ struct PendingTranscriptionJob: Codable, Identifiable, Equatable {
     var audioFileName: String
     var duration: TimeInterval
     var modelName: String
+    var languageIDs: [String]?
     var status: TranscriptionStatus
     var uploadedFileURI: String?
     var updatedAt: Date
+}
+
+enum TranscriptionLanguage: String, Codable, CaseIterable, Identifiable {
+    case japanese = "ja"
+    case english = "en"
+    case chinese = "zh"
+    case korean = "ko"
+    case spanish = "es"
+    case french = "fr"
+    case german = "de"
+    case portuguese = "pt"
+    case italian = "it"
+    case vietnamese = "vi"
+    case thai = "th"
+    case indonesian = "id"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .japanese:
+            "日本語"
+        case .english:
+            "英語"
+        case .chinese:
+            "中国語"
+        case .korean:
+            "韓国語"
+        case .spanish:
+            "スペイン語"
+        case .french:
+            "フランス語"
+        case .german:
+            "ドイツ語"
+        case .portuguese:
+            "ポルトガル語"
+        case .italian:
+            "イタリア語"
+        case .vietnamese:
+            "ベトナム語"
+        case .thai:
+            "タイ語"
+        case .indonesian:
+            "インドネシア語"
+        }
+    }
+}
+
+enum TranscriptionLanguageStore {
+    private static let selectedLanguagesKey = "selected-transcription-languages"
+    static let fallbackLanguageIDs = [TranscriptionLanguage.japanese.id]
+
+    static func selectedLanguageIDs() -> Set<String> {
+        let saved = UserDefaults.standard.stringArray(forKey: selectedLanguagesKey) ?? fallbackLanguageIDs
+        let validIDs = Set(TranscriptionLanguage.allCases.map(\.id))
+        let filtered = Set(saved.filter { validIDs.contains($0) })
+        return filtered.isEmpty ? Set(fallbackLanguageIDs) : filtered
+    }
+
+    static func saveSelectedLanguageIDs(_ languageIDs: Set<String>) {
+        let validIDs = Set(TranscriptionLanguage.allCases.map(\.id))
+        let filtered = languageIDs.filter { validIDs.contains($0) }
+        let stored = filtered.isEmpty ? fallbackLanguageIDs : Array(filtered).sorted()
+        UserDefaults.standard.set(stored, forKey: selectedLanguagesKey)
+    }
+
+    static func languages(for languageIDs: [String]?) -> [TranscriptionLanguage] {
+        let ids = Set(languageIDs ?? Array(selectedLanguageIDs()))
+        let languages = TranscriptionLanguage.allCases.filter { ids.contains($0.id) }
+        return languages.isEmpty ? [.japanese] : languages
+    }
+}
+
+struct GeminiModelInfo: Codable, Identifiable, Hashable {
+    var id: String
+    var displayName: String
+
+    var label: String {
+        displayName.isEmpty || displayName == id ? id : "\(displayName) (\(id))"
+    }
+}
+
+enum GeminiModelStore {
+    private static let selectedModelKey = "selected-gemini-model"
+    private static let availableModelsKey = "available-gemini-models"
+
+    static let fallbackModels = [
+        GeminiModelInfo(id: GeminiTranscriptionClient.defaultModel, displayName: "Gemini 2.5 Flash")
+    ]
+
+    static func selectedModelName() -> String {
+        let saved = UserDefaults.standard.string(forKey: selectedModelKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return saved?.isEmpty == false ? saved! : GeminiTranscriptionClient.defaultModel
+    }
+
+    static func saveSelectedModelName(_ modelName: String) {
+        let normalized = GeminiTranscriptionClient.normalizedModelName(modelName)
+        UserDefaults.standard.set(normalized, forKey: selectedModelKey)
+    }
+
+    static func availableModels() -> [GeminiModelInfo] {
+        guard let data = UserDefaults.standard.data(forKey: availableModelsKey),
+              let models = try? JSONDecoder().decode([GeminiModelInfo].self, from: data),
+              !models.isEmpty else {
+            return fallbackModels
+        }
+        return models
+    }
+
+    static func saveAvailableModels(_ models: [GeminiModelInfo]) {
+        guard let data = try? JSONEncoder().encode(models) else { return }
+        UserDefaults.standard.set(data, forKey: availableModelsKey)
+    }
 }
 
 enum AudioFileStore {

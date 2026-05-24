@@ -11,6 +11,7 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = TranscriptViewModel()
     @Query(sort: \TranscriptRecord.createdAt, order: .reverse) private var records: [TranscriptRecord]
+    @State private var isShowingAdvancedSettings = false
 
     var body: some View {
         NavigationStack {
@@ -38,6 +39,56 @@ struct ContentView: View {
                         Label(viewModel.apiKeySaved ? "設定済み" : "未設定", systemImage: viewModel.apiKeySaved ? "checkmark.seal.fill" : "exclamationmark.triangle")
                             .font(.caption)
                             .foregroundStyle(viewModel.apiKeySaved ? .green : .orange)
+                    }
+
+                    DisclosureGroup("詳細設定", isExpanded: $isShowingAdvancedSettings) {
+                        Picker("Gemini モデル", selection: $viewModel.selectedModelName) {
+                            ForEach(viewModel.availableModels) { model in
+                                Text(model.label)
+                                    .tag(model.id)
+                            }
+                        }
+                        .disabled(viewModel.availableModels.isEmpty)
+                        .onChange(of: viewModel.selectedModelName) { _, newValue in
+                            viewModel.selectModel(newValue)
+                        }
+
+                        HStack {
+                            Button {
+                                viewModel.refreshModels()
+                            } label: {
+                                Label("モデル一覧を更新", systemImage: "arrow.clockwise")
+                            }
+                            .disabled(!viewModel.canSendToGemini || viewModel.isRefreshingModels)
+
+                            Spacer()
+
+                            if viewModel.isRefreshingModels {
+                                ProgressView()
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("文字起こし言語")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            ForEach(TranscriptionLanguage.allCases) { language in
+                                Toggle(language.label, isOn: Binding(
+                                    get: {
+                                        viewModel.isLanguageSelected(language)
+                                    },
+                                    set: { _ in
+                                        viewModel.toggleLanguage(language)
+                                    }
+                                ))
+                            }
+
+                            Text("選択中: \(viewModel.selectedLanguageSummary)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.top, 6)
                     }
                 }
 

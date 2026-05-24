@@ -14,6 +14,10 @@ final class TranscriptViewModel: ObservableObject {
     @Published var statusMessage = "API キーを設定し、録音を開始してください。"
     @Published var errorMessage: String?
     @Published var isProcessing = false
+    @Published var selectedModelName = GeminiTranscriptionClient.defaultModel
+    @Published var availableModels = GeminiModelStore.fallbackModels
+    @Published var isRefreshingModels = false
+    @Published var selectedLanguageIDs = Set(TranscriptionLanguageStore.fallbackLanguageIDs)
 
     let recorder = AudioRecorder()
 
@@ -28,6 +32,9 @@ final class TranscriptViewModel: ObservableObject {
     func loadAPIKey() {
         apiKey = APIKeyStore.load()
         apiKeySaved = canSendToGemini
+        selectedModelName = GeminiModelStore.selectedModelName()
+        availableModels = GeminiModelStore.availableModels()
+        selectedLanguageIDs = TranscriptionLanguageStore.selectedLanguageIDs()
     }
 
     func saveAPIKey() {
@@ -51,6 +58,64 @@ final class TranscriptViewModel: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func selectModel(_ modelName: String) {
+        let normalized = GeminiTranscriptionClient.normalizedModelName(modelName)
+        selectedModelName = normalized
+        GeminiModelStore.saveSelectedModelName(normalized)
+    }
+
+    func refreshModels() {
+        guard canSendToGemini else {
+            errorMessage = "Gemini API キーが未設定です。"
+            return
+        }
+
+        isRefreshingModels = true
+        errorMessage = nil
+        statusMessage = "Gemini モデル一覧を更新しています。"
+
+        Task {
+            defer {
+                isRefreshingModels = false
+            }
+
+            do {
+                let client = GeminiTranscriptionClient(apiKey: apiKey, modelName: selectedModelName)
+                let models = try await client.listModels()
+                availableModels = models
+                GeminiModelStore.saveAvailableModels(models)
+
+                if !models.contains(where: { $0.id == selectedModelName }), let firstModel = models.first {
+                    selectModel(firstModel.id)
+                }
+
+                statusMessage = "Gemini モデル一覧を更新しました。"
+            } catch {
+                errorMessage = error.localizedDescription
+                statusMessage = "Gemini モデル一覧を更新できませんでした。"
+            }
+        }
+    }
+
+    func toggleLanguage(_ language: TranscriptionLanguage) {
+        if selectedLanguageIDs.contains(language.id), selectedLanguageIDs.count > 1 {
+            selectedLanguageIDs.remove(language.id)
+        } else {
+            selectedLanguageIDs.insert(language.id)
+        }
+        TranscriptionLanguageStore.saveSelectedLanguageIDs(selectedLanguageIDs)
+    }
+
+    func isLanguageSelected(_ language: TranscriptionLanguage) -> Bool {
+        selectedLanguageIDs.contains(language.id)
+    }
+
+    var selectedLanguageSummary: String {
+        TranscriptionLanguageStore.languages(for: Array(selectedLanguageIDs))
+            .map(\.label)
+            .joined(separator: "、")
     }
 
     func toggleRecording(modelContext: ModelContext) {
@@ -79,6 +144,7 @@ final class TranscriptViewModel: ObservableObject {
             let record = TranscriptRecord(
                 audioFileName: result.url.lastPathComponent,
                 duration: result.duration,
+                modelName: selectedModelName,
                 status: canSendToGemini ? .pendingUpload : .failed,
                 errorMessage: canSendToGemini ? nil : "Gemini API キーが未設定です。"
             )
@@ -92,6 +158,7 @@ final class TranscriptViewModel: ObservableObject {
                     audioFileName: record.audioFileName,
                     duration: record.duration,
                     modelName: record.modelName,
+                    languageIDs: Array(selectedLanguageIDs).sorted(),
                     status: .pendingUpload,
                     uploadedFileURI: nil,
                     updatedAt: Date()
@@ -119,6 +186,7 @@ final class TranscriptViewModel: ObservableObject {
             audioFileName: record.audioFileName,
             duration: record.duration,
             modelName: record.modelName,
+            languageIDs: Array(selectedLanguageIDs).sorted(),
             status: .pendingUpload,
             uploadedFileURI: nil,
             updatedAt: Date()
@@ -202,7 +270,8 @@ final class TranscriptViewModel: ObservableObject {
                 }
 
                 backgroundTask.begin(named: "Gemini transcription")
-                let transcript = try await client.generateTranscript(fileURI: uploadedFileURI)
+                let transcriptLanguages = TranscriptionLanguageStore.languages(for: job.languageIDs)
+                let transcript = try await client.generateTranscript(fileURI: uploadedFileURI, languages: transcriptLanguages)
                 let currentTitle = record.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
                 let generatedTitle: String?
                 if currentTitle.isEmpty {

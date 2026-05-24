@@ -16,8 +16,59 @@ final class GeminiTranscriptionClient {
 
     init(apiKey: String, modelName: String = defaultModel) {
         self.apiKey = apiKey
-        self.modelName = modelName
+        self.modelName = Self.normalizedModelName(modelName)
         self.foregroundSession = URLSession(configuration: .default)
+    }
+
+    static func normalizedModelName(_ modelName: String) -> String {
+        let trimmed = modelName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("models/") {
+            return String(trimmed.dropFirst("models/".count))
+        }
+        return trimmed.isEmpty ? defaultModel : trimmed
+    }
+
+    private var modelResourceName: String {
+        "models/\(modelName)"
+    }
+
+    func listModels() async throws -> [GeminiModelInfo] {
+        var components = URLComponents(string: "https://generativelanguage.googleapis.com/v1beta/models")!
+        components.queryItems = [
+            URLQueryItem(name: "pageSize", value: "1000")
+        ]
+
+        var models: [GeminiModelInfo] = []
+        var nextPageToken: String?
+
+        repeat {
+            if let nextPageToken {
+                components.queryItems = [
+                    URLQueryItem(name: "pageSize", value: "1000"),
+                    URLQueryItem(name: "pageToken", value: nextPageToken)
+                ]
+            }
+
+            var request = URLRequest(url: components.url!)
+            request.httpMethod = "GET"
+            request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+
+            let (data, response) = try await foregroundSession.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse else {
+                throw GeminiError.invalidResponse("モデル一覧取得")
+            }
+            try validate(httpResponse, data: data)
+
+            let result = try decoder.decode(GeminiListModelsResponse.self, from: data)
+            models.append(contentsOf: result.models.compactMap(\.modelInfoForGenerateContent))
+            nextPageToken = result.nextPageToken
+        } while nextPageToken?.isEmpty == false
+
+        let uniqueModels = Dictionary(grouping: models, by: \.id)
+            .compactMap { $0.value.first }
+            .sorted { lhs, rhs in lhs.id.localizedStandardCompare(rhs.id) == .orderedAscending }
+
+        return uniqueModels.isEmpty ? GeminiModelStore.fallbackModels : uniqueModels
     }
 
     func uploadAudioFile(at fileURL: URL) async throws -> GeminiUploadedFile {
@@ -60,8 +111,12 @@ final class GeminiTranscriptionClient {
         return response.file
     }
 
-    func generateTranscript(fileURI: String, mimeType: String = "audio/mp4") async throws -> String {
-        var request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(modelName):generateContent")!)
+    func generateTranscript(
+        fileURI: String,
+        mimeType: String = "audio/mp4",
+        languages: [TranscriptionLanguage] = [.japanese]
+    ) async throws -> String {
+        var request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/\(modelResourceName):generateContent")!)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -69,7 +124,7 @@ final class GeminiTranscriptionClient {
             GeminiGenerateContentRequest(
                 contents: [
                     .init(parts: [
-                        .init(text: "音声を正確に文字起こしし、本文のみ返す。余計な説明は返さない。"),
+                        .init(text: transcriptPrompt(for: languages)),
                         .init(fileData: .init(mimeType: mimeType, fileURI: fileURI))
                     ])
                 ]
@@ -96,13 +151,24 @@ final class GeminiTranscriptionClient {
         return text
     }
 
+    private func transcriptPrompt(for languages: [TranscriptionLanguage]) -> String {
+        let languageText = languages.map(\.label).joined(separator: "、")
+        return """
+        音声を正確に文字起こししてください。
+        対象言語: \(languageText)
+        対象言語として指定された言語の発話を優先して認識してください。
+        話されている言語のまま本文のみ返してください。
+        余計な説明、要約、見出し、コードブロックは返さないでください。
+        """
+    }
+
     func generateTitle(for transcript: String) async throws -> String {
         let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTranscript.isEmpty else {
             throw GeminiError.emptyTranscript
         }
 
-        var request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(modelName):generateContent")!)
+        var request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/\(modelResourceName):generateContent")!)
         request.httpMethod = "POST"
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -266,6 +332,30 @@ struct GeminiUploadedFile: Decodable {
         case name
         case uri
         case mimeType = "mimeType"
+    }
+}
+
+private struct GeminiListModelsResponse: Decodable {
+    let models: [GeminiModelResponse]
+    let nextPageToken: String?
+}
+
+private struct GeminiModelResponse: Decodable {
+    let name: String
+    let displayName: String?
+    let supportedGenerationMethods: [String]?
+
+    var modelInfoForGenerateContent: GeminiModelInfo? {
+        guard supportedGenerationMethods?.contains("generateContent") == true else {
+            return nil
+        }
+
+        let id = GeminiTranscriptionClient.normalizedModelName(name)
+        guard id.hasPrefix("gemini-") else {
+            return nil
+        }
+
+        return GeminiModelInfo(id: id, displayName: displayName ?? id)
     }
 }
 
