@@ -100,8 +100,16 @@ struct ContentView: View {
             }
             .navigationTitle("KoeLog")
             .toolbar {
-                if viewModel.isProcessing {
-                    ProgressView()
+                ToolbarItem(placement: .topBarLeading) {
+                    if !records.isEmpty {
+                        EditButton()
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    if viewModel.isProcessing {
+                        ProgressView()
+                    }
                 }
             }
         }
@@ -158,9 +166,11 @@ struct TranscriptRow: View {
 
 struct TranscriptDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Bindable var record: TranscriptRecord
     @ObservedObject var viewModel: TranscriptViewModel
     @StateObject private var player = AudioPlayer()
+    @State private var isShowingDeleteConfirmation = false
 
     var body: some View {
         List {
@@ -212,6 +222,25 @@ struct TranscriptDetailView: View {
         }
         .navigationTitle("履歴詳細")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) {
+                    isShowingDeleteConfirmation = true
+                } label: {
+                    Label("削除", systemImage: "trash")
+                }
+            }
+        }
+        .confirmationDialog("この履歴を削除しますか？", isPresented: $isShowingDeleteConfirmation, titleVisibility: .visible) {
+            Button("履歴と録音を削除", role: .destructive) {
+                player.stop()
+                viewModel.delete(record: record, modelContext: modelContext)
+                dismiss()
+            }
+            Button("キャンセル", role: .cancel) {}
+        } message: {
+            Text("文字起こし履歴と録音ファイルを削除します。")
+        }
     }
 }
 
