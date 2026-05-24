@@ -68,11 +68,11 @@ final class AudioRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         }
 
         let url = recorder.url
+        let duration = currentElapsedTime()
         recorder.stop()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         stopTimer()
 
-        let duration = elapsedTime
         self.recorder = nil
         startedAt = nil
         elapsedTime = 0
@@ -81,14 +81,19 @@ final class AudioRecorder: NSObject, ObservableObject, AVAudioRecorderDelegate {
         return RecordingResult(url: url, duration: max(duration, 0))
     }
 
+    func currentElapsedTime(at date: Date = Date()) -> TimeInterval {
+        if isRecording, let startedAt {
+            return date.timeIntervalSince(startedAt)
+        }
+        return elapsedTime
+    }
+
     private func startTimer() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                if let startedAt = self.startedAt {
-                    self.elapsedTime = Date().timeIntervalSince(startedAt)
-                }
+                self.elapsedTime = self.currentElapsedTime()
             }
         }
     }

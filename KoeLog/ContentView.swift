@@ -42,34 +42,7 @@ struct ContentView: View {
                 }
 
                 Section("録音") {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(viewModel.recorder.isRecording ? "録音中" : "待機中")
-                                    .font(.headline)
-                                Text(formatDuration(viewModel.recorder.elapsedTime))
-                                    .font(.title2.monospacedDigit())
-                            }
-
-                            Spacer()
-
-                            Button {
-                                viewModel.toggleRecording(modelContext: modelContext)
-                            } label: {
-                                Label(
-                                    viewModel.recorder.isRecording ? "停止" : "録音",
-                                    systemImage: viewModel.recorder.isRecording ? "stop.fill" : "record.circle"
-                                )
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .tint(viewModel.recorder.isRecording ? .red : .blue)
-                        }
-
-                        Text(viewModel.statusMessage)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 4)
+                    RecordingControlsView(viewModel: viewModel, modelContext: modelContext)
                 }
 
                 if let errorMessage = viewModel.errorMessage {
@@ -124,6 +97,46 @@ struct ContentView: View {
                 viewModel.resumePendingJobs(modelContext: modelContext)
             }
         }
+    }
+}
+
+struct RecordingControlsView: View {
+    @ObservedObject var viewModel: TranscriptViewModel
+    let modelContext: ModelContext
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.recorder.isRecording ? "録音中" : "待機中")
+                        .font(.headline)
+
+                    TimelineView(.periodic(from: .now, by: 0.1)) { context in
+                        Text(formatDuration(viewModel.recorder.currentElapsedTime(at: context.date)))
+                            .font(.title2.monospacedDigit())
+                            .contentTransition(.numericText())
+                    }
+                }
+
+                Spacer()
+
+                Button {
+                    viewModel.toggleRecording(modelContext: modelContext)
+                } label: {
+                    Label(
+                        viewModel.recorder.isRecording ? "停止" : "録音",
+                        systemImage: viewModel.recorder.isRecording ? "stop.fill" : "record.circle"
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(viewModel.recorder.isRecording ? .red : .blue)
+            }
+
+            Text(viewModel.statusMessage)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 4)
     }
 }
 
