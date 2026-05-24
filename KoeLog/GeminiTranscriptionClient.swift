@@ -6,7 +6,7 @@
 import Foundation
 
 final class GeminiTranscriptionClient {
-    static let defaultModel = "gemini-2.5-flash"
+    static let defaultModel = "gemini-flash-latest"
 
     private let apiKey: String
     private let modelName: String

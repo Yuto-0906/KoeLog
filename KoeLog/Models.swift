@@ -182,7 +182,7 @@ enum GeminiModelStore {
     private static let availableModelsKey = "available-gemini-models"
 
     static let fallbackModels = [
-        GeminiModelInfo(id: GeminiTranscriptionClient.defaultModel, displayName: "Gemini 2.5 Flash")
+        GeminiModelInfo(id: GeminiTranscriptionClient.defaultModel, displayName: "Gemini Flash Latest")
     ]
 
     static func selectedModelName() -> String {
