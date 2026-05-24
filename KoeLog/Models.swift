@@ -36,6 +36,7 @@ enum TranscriptionStatus: String, Codable, CaseIterable {
 @Model
 final class TranscriptRecord {
     @Attribute(.unique) var id: UUID
+    var title: String?
     var createdAt: Date
     var transcript: String
     var audioFileName: String
@@ -46,6 +47,7 @@ final class TranscriptRecord {
 
     init(
         id: UUID = UUID(),
+        title: String? = nil,
         createdAt: Date = Date(),
         transcript: String = "",
         audioFileName: String,
@@ -55,6 +57,7 @@ final class TranscriptRecord {
         errorMessage: String? = nil
     ) {
         self.id = id
+        self.title = title
         self.createdAt = createdAt
         self.transcript = transcript
         self.audioFileName = audioFileName
@@ -71,6 +74,14 @@ final class TranscriptRecord {
 
     var audioURL: URL {
         AudioFileStore.recordingsDirectory.appendingPathComponent(audioFileName)
+    }
+
+    var displayTitle: String {
+        if let title = title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return title
+        }
+
+        return "録音 \(createdAt.formatted(date: .abbreviated, time: .shortened))"
     }
 }
 

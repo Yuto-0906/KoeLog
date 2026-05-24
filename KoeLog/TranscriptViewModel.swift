@@ -203,9 +203,20 @@ final class TranscriptViewModel: ObservableObject {
 
                 backgroundTask.begin(named: "Gemini transcription")
                 let transcript = try await client.generateTranscript(fileURI: uploadedFileURI)
+                let currentTitle = record.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let generatedTitle: String?
+                if currentTitle.isEmpty {
+                    statusMessage = "タイトルを作成しています。"
+                    generatedTitle = try? await client.generateTitle(for: transcript)
+                } else {
+                    generatedTitle = nil
+                }
                 backgroundTask.end()
 
                 record.transcript = transcript
+                if let generatedTitle, currentTitle.isEmpty {
+                    record.title = generatedTitle
+                }
                 record.status = .completed
                 record.errorMessage = nil
                 try modelContext.save()

@@ -146,11 +146,16 @@ struct TranscriptRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(record.createdAt, format: .dateTime.year().month().day().hour().minute())
+                Text(record.displayTitle)
                     .font(.headline)
+                    .lineLimit(1)
                 Spacer()
                 StatusBadge(status: record.status)
             }
+
+            Text(record.createdAt, format: .dateTime.year().month().day().hour().minute())
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Text(rowSummary)
                 .lineLimit(2)
@@ -186,9 +191,22 @@ struct TranscriptDetailView: View {
     @State private var isShowingDeleteConfirmation = false
     @State private var transcriptExportURL: URL?
     @State private var exportErrorMessage: String?
+    @State private var titleDraft = ""
 
     var body: some View {
         List {
+            Section("タイトル") {
+                TextField("タイトル", text: $titleDraft)
+                    .textInputAutocapitalization(.never)
+                    .submitLabel(.done)
+                    .onSubmit(saveTitle)
+
+                Button("タイトルを保存") {
+                    saveTitle()
+                }
+                .disabled(titleDraft.trimmingCharacters(in: .whitespacesAndNewlines) == (record.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""))
+            }
+
             Section("状態") {
                 LabeledContent("作成日時", value: record.createdAt.formatted(date: .abbreviated, time: .shortened))
                 LabeledContent("録音時間", value: formatDuration(record.duration))
@@ -260,10 +278,14 @@ struct TranscriptDetailView: View {
                 }
             }
         }
-        .navigationTitle("履歴詳細")
+        .navigationTitle(record.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            titleDraft = record.title ?? ""
             prepareTranscriptExport()
+        }
+        .onChange(of: record.title) { _, newTitle in
+            titleDraft = newTitle ?? ""
         }
         .onChange(of: record.transcript) { _, _ in
             prepareTranscriptExport()
@@ -303,6 +325,13 @@ struct TranscriptDetailView: View {
             transcriptExportURL = nil
             exportErrorMessage = error.localizedDescription
         }
+    }
+
+    private func saveTitle() {
+        let trimmedTitle = titleDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        record.title = trimmedTitle.isEmpty ? nil : trimmedTitle
+        titleDraft = record.title ?? ""
+        try? modelContext.save()
     }
 }
 

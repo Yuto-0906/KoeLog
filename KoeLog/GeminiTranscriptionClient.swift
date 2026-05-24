@@ -96,6 +96,52 @@ final class GeminiTranscriptionClient {
         return text
     }
 
+    func generateTitle(for transcript: String) async throws -> String {
+        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTranscript.isEmpty else {
+            throw GeminiError.emptyTranscript
+        }
+
+        var request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/models/\(modelName):generateContent")!)
+        request.httpMethod = "POST"
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            GeminiGenerateContentRequest(
+                contents: [
+                    .init(parts: [
+                        .init(text: """
+                        次の文字起こし内容にふさわしい日本語タイトルを作ってください。
+                        20文字以内で、本文のみ返してください。引用符、句点、説明は不要です。
+
+                        文字起こし:
+                        \(trimmedTranscript)
+                        """)
+                    ])
+                ]
+            )
+        )
+
+        let (data, response) = try await foregroundSession.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw GeminiError.invalidResponse("タイトル生成")
+        }
+        try validate(httpResponse, data: data)
+
+        let result = try decoder.decode(GeminiGenerateContentResponse.self, from: data)
+        let title = result.candidates
+            .flatMap(\.content.parts)
+            .compactMap(\.text)
+            .joined(separator: " ")
+            .sanitizedTranscriptTitle()
+
+        guard !title.isEmpty else {
+            throw GeminiError.emptyTitle
+        }
+
+        return title
+    }
+
     private func validate(_ response: HTTPURLResponse, data: Data) throws {
         guard (200..<300).contains(response.statusCode) else {
             if let apiError = try? decoder.decode(GeminiAPIErrorResponse.self, from: data) {
@@ -233,8 +279,8 @@ private struct GeminiGenerateContentRequest: Encodable {
     }
 
     struct Part: Encodable {
-        var text: String?
-        var fileData: FileData?
+        var text: String? = nil
+        var fileData: FileData? = nil
 
         enum CodingKeys: String, CodingKey {
             case text
@@ -283,6 +329,7 @@ enum GeminiError: LocalizedError {
     case invalidResponse(String)
     case missingUploadURL
     case emptyTranscript
+    case emptyTitle
     case httpStatus(Int, String)
     case api(String)
 
@@ -294,10 +341,22 @@ enum GeminiError: LocalizedError {
             "Gemini API のアップロード URL が取得できませんでした。"
         case .emptyTranscript:
             "文字起こし本文が空でした。"
+        case .emptyTitle:
+            "タイトルが空でした。"
         case let .httpStatus(code, body):
             body.isEmpty ? "Gemini API エラー: HTTP \(code)" : "Gemini API エラー: HTTP \(code) \(body)"
         case let .api(message):
             "Gemini API エラー: \(message)"
         }
+    }
+}
+
+private extension String {
+    func sanitizedTranscriptTitle() -> String {
+        let firstLine = components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? ""
+        let trimmed = firstLine.trimmingCharacters(in: CharacterSet(charactersIn: "\"'「」『』【】[]（）().。 "))
+        return String(trimmed.prefix(30))
     }
 }
