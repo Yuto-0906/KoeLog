@@ -35,14 +35,14 @@ enum TranscriptionStatus: String, Codable, CaseIterable {
 
 @Model
 final class TranscriptRecord {
-    @Attribute(.unique) var id: UUID
+    var id: UUID = UUID()
     var title: String?
-    var createdAt: Date
-    var transcript: String
-    var audioFileName: String
-    var duration: TimeInterval
-    var modelName: String
-    var statusRawValue: String
+    var createdAt: Date = Date()
+    var transcript: String = ""
+    var audioFileName: String = ""
+    var duration: TimeInterval = 0
+    var modelName: String = GeminiTranscriptionClient.defaultModel
+    var statusRawValue: String = TranscriptionStatus.pendingUpload.rawValue
     var errorMessage: String?
 
     init(

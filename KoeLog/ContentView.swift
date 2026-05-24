@@ -275,12 +275,16 @@ struct TranscriptDetailView: View {
             }
 
             Section("録音") {
-                Button {
-                    player.toggle(url: record.audioURL)
-                } label: {
-                    Label(player.isPlaying ? "停止" : "再生", systemImage: player.isPlaying ? "stop.fill" : "play.fill")
+                if FileManager.default.fileExists(atPath: record.audioURL.path) {
+                    Button {
+                        player.toggle(url: record.audioURL)
+                    } label: {
+                        Label(player.isPlaying ? "停止" : "再生", systemImage: player.isPlaying ? "stop.fill" : "play.fill")
+                    }
+                } else {
+                    Label("音声ファイルはこの端末にありません", systemImage: "icloud.slash")
+                        .foregroundStyle(.secondary)
                 }
-                .disabled(!FileManager.default.fileExists(atPath: record.audioURL.path))
             }
 
             Section("文字起こし") {
@@ -299,7 +303,7 @@ struct TranscriptDetailView: View {
                         Label("音声ファイルを書き出す", systemImage: "waveform")
                     }
                 } else {
-                    Label("音声ファイルが見つかりません", systemImage: "exclamationmark.triangle")
+                    Label("音声ファイルはこの端末にありません", systemImage: "icloud.slash")
                         .foregroundStyle(.secondary)
                 }
 
