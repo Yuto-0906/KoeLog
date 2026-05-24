@@ -54,7 +54,7 @@ KoeLog は以下のデータを端末内に保存します。
 
 不具合報告、質問、要望は GitHub Issues から連絡してください。
 
-- Issues: https://github.com/your-account/KoeLog/issues
+- Issues: https://github.com/Yuto-0906/KoeLog/issues
 
 App Store からこのページを見ている場合も、上記の Issues をサポート窓口として利用できます。
 
