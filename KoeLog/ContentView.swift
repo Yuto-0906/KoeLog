@@ -123,13 +123,13 @@ struct RecordingControlsView: View {
                 Button {
                     viewModel.toggleRecording(modelContext: modelContext)
                 } label: {
-                    Label(
-                        viewModel.recorder.isRecording ? "停止" : "録音",
-                        systemImage: viewModel.recorder.isRecording ? "stop.fill" : "record.circle"
-                    )
+                    Text(viewModel.recorder.isRecording ? "停止" : "録音")
+                        .font(.headline)
+                        .frame(width: 96, height: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(viewModel.recorder.isRecording ? .red : .blue)
+                .tint(.red)
             }
 
             Text(viewModel.statusMessage)
