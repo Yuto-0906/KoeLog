@@ -91,17 +91,8 @@ if (!notionPageId) {
   throw new Error("NOTION_PAGE_ID or NOTION_TARGET_PAGE_ID is required.");
 }
 
-const sourceUrl = buildSourceUrl();
 const markdown = await readFile(README_PATH, "utf8");
-const blocks = [
-  textBlock(
-    "paragraph",
-    sourceUrl
-      ? `Synced automatically from ${sourceUrl}`
-      : `Synced automatically from ${README_PATH}`,
-  ),
-  ...markdownToBlocks(markdown),
-];
+const blocks = markdownToBlocks(markdown);
 
 if (process.env.DRY_RUN === "1") {
   console.log(`Dry run: parsed ${blocks.length} Notion blocks from ${README_PATH}.`);
@@ -463,18 +454,6 @@ function resolveAssetUrl(url) {
   }
 
   return `https://raw.githubusercontent.com/${repository}/${ref}/${url.replace(/^\.\//, "")}`;
-}
-
-function buildSourceUrl() {
-  const serverUrl = process.env.GITHUB_SERVER_URL;
-  const repository = process.env.GITHUB_REPOSITORY;
-  const sha = process.env.GITHUB_SHA;
-
-  if (!serverUrl || !repository || !sha) {
-    return undefined;
-  }
-
-  return `${serverUrl}/${repository}/blob/${sha}/${README_PATH}`;
 }
 
 function normalizeNotionId(value) {
