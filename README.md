@@ -109,6 +109,17 @@ Gemini API へ送信されるデータの取り扱いは、Google の API 利用
 
 Xcode で `KoeLog.xcodeproj` を開き、`KoeLog` ターゲットをビルドしてください。
 
+### README の Notion 同期
+
+`README.md` が `main` ブランチに push されると、GitHub Actions が Notion ページへ自動同期します。
+
+Repository secrets に以下を設定してください。
+
+- `NOTION_API_KEY`
+- `NOTION_PAGE_ID`
+
+手動で同期したい場合は、GitHub Actions の `Sync README to Notion` workflow から `Run workflow` を実行してください。
+
 ## License
 
 ライセンス未定。
